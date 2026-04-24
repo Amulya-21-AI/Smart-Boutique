@@ -39,6 +39,8 @@ help boutique owners make smarter business decisions.
 ---
 
 ## 🗂️ Project Structure
+
+```
 Smart-Boutique/
 │
 ├── 📁 data/
@@ -51,7 +53,7 @@ Smart-Boutique/
 │   └── schema.sql                  # Database schema
 │
 ├── 📁 genai/
-│   ├── 📁 knowledge_base/          # RAG knowledge documents
+│   ├── 📁 knowledge_base/
 │   │   ├── fabric_guide.txt
 │   │   ├── festival_guide.txt
 │   │   ├── product_catalog.txt
@@ -60,15 +62,15 @@ Smart-Boutique/
 │   ├── memory.py                   # Conversation memory
 │   └── rag_pipeline.py             # RAG implementation
 │
-├── main.py                         # Streamlit app entry point
+├── 📁 ML/
+├── 📁 pages/
+├── Main.py                         # Streamlit app entry point
 ├── handle_Duplicates.py            # Data cleaning utility
 ├── Data-preprocessing.ipynb        # EDA & preprocessing notebook
 ├── .gitignore
 ├── requirements.txt
 └── README.md
-
----
-
+```
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
