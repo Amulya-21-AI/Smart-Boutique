@@ -98,3 +98,21 @@ CREATE INDEX IF NOT EXISTS idx_orders_date   ON orders(order_date);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_season ON orders(season);
 CREATE INDEX IF NOT EXISTS idx_rec_cust      ON recommendations(cust_id);
+
+-- ── User accounts (admin + customers) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS users (
+    user_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT    NOT NULL UNIQUE,
+    email         TEXT    UNIQUE,
+    password_hash TEXT    NOT NULL,
+    salt          TEXT    NOT NULL,
+    role          TEXT    NOT NULL DEFAULT 'customer'
+                          CHECK(role IN ('admin','customer')),
+    cust_id       INTEGER REFERENCES customers(cust_id),
+    is_active     INTEGER DEFAULT 1,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login    TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email    ON users(email);

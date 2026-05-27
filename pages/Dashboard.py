@@ -15,6 +15,9 @@ from database.db import init_db, run_query
 st.set_page_config(page_title="Dashboard · Smart Boutique", page_icon="📊", layout="wide")
 init_db()
 
+from utils.auth import require_auth
+role, cust_id = require_auth(['admin'])
+
 GOLD    = "#c9a96e"
 PALETTE = ["#c9a96e","#e8c99a","#8b5e3c","#1a0a2e","#0f3460",
            "#16213e","#e74c3c","#2ecc71","#3498db","#9b59b6"]
@@ -87,6 +90,83 @@ if len(kpi):
     c4.metric("🛍️ Units Sold",    f"{int(k['total_units']   or 0):,}")
     c5.metric("🔄 Returns",       f"{returns:,}", f"{ret_rate}% return rate")
     c6.metric("👥 Customers",     f"{int(k['unique_custs']  or 0):,}")
+
+st.divider()
+
+# ── Customer Growth ───────────────────────────────────────────────────────────
+st.markdown(f"<h2 style='color:{GOLD}'>👥 Customer Growth</h2>", unsafe_allow_html=True)
+
+cg1, cg2 = st.columns(2)
+
+with cg1:
+    st.subheader("New Customers per Month")
+    df_cust_growth = run_query("""
+        SELECT strftime('%Y-%m', created_at) AS month,
+               COUNT(DISTINCT cust_id)       AS new_customers
+        FROM customers
+        WHERE created_at IS NOT NULL
+        GROUP BY month
+        ORDER BY month
+    """)
+    if not df_cust_growth.empty:
+        fig_cg = px.bar(df_cust_growth, x='month', y='new_customers',
+                        color_discrete_sequence=['#c9a96e'],
+                        labels={'month': 'Month', 'new_customers': 'New Customers'})
+        fig_cg.update_layout(plot_bgcolor='rgba(0,0,0,0)',
+                             paper_bgcolor='rgba(0,0,0,0)', font_color='#aaa',
+                             xaxis_tickangle=-45)
+        st.plotly_chart(fig_cg, use_container_width=True)
+    else:
+        st.info("No customer registration data yet.")
+
+with cg2:
+    st.subheader("Cumulative Customer Base")
+    df_cum = run_query("""
+        SELECT strftime('%Y-%m', created_at) AS month,
+               COUNT(DISTINCT cust_id)       AS new_customers
+        FROM customers
+        WHERE created_at IS NOT NULL
+        GROUP BY month ORDER BY month
+    """)
+    if not df_cum.empty:
+        import pandas as pd
+        df_cum['cumulative'] = df_cum['new_customers'].cumsum()
+        fig_cum = px.area(df_cum, x='month', y='cumulative',
+                          color_discrete_sequence=['#c9a96e'],
+                          labels={'month': 'Month', 'cumulative': 'Total Customers'})
+        fig_cum.update_layout(plot_bgcolor='rgba(0,0,0,0)',
+                              paper_bgcolor='rgba(0,0,0,0)', font_color='#aaa',
+                              xaxis_tickangle=-45)
+        st.plotly_chart(fig_cum, use_container_width=True)
+
+st.divider()
+
+# ── Revenue by Category (Trend) ───────────────────────────────────────────────
+st.markdown(f"<h2 style='color:{GOLD}'>📈 Revenue by Category</h2>",
+            unsafe_allow_html=True)
+
+df_cat_trend = run_query("""
+    SELECT strftime('%Y-%m', order_date) AS month,
+           category,
+           SUM(amount) AS revenue
+    FROM orders
+    WHERE status NOT IN ('Cancelled','Returned')
+      AND order_date IS NOT NULL
+      AND category IS NOT NULL
+    GROUP BY month, category
+    ORDER BY month
+""")
+if not df_cat_trend.empty:
+    fig_ct = px.line(df_cat_trend, x='month', y='revenue', color='category',
+                     markers=True, color_discrete_sequence=PALETTE,
+                     labels={'month': 'Month', 'revenue': 'Revenue (₹)',
+                             'category': 'Category'})
+    fig_ct.update_layout(plot_bgcolor='rgba(0,0,0,0)',
+                         paper_bgcolor='rgba(0,0,0,0)', font_color='#aaa',
+                         xaxis_tickangle=-45, height=400)
+    st.plotly_chart(fig_ct, use_container_width=True)
+else:
+    st.info("No order data to show category trends.")
 
 st.divider()
 

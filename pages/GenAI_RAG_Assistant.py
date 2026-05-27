@@ -10,8 +10,8 @@ import shutil
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from dotenv import load_dotenv
-load_dotenv(os.path.join(ROOT, ".env"))
+from utils.secrets import load_api_keys
+load_api_keys()
 
 import streamlit as st
 from database.db import init_db
@@ -21,6 +21,10 @@ st.set_page_config(
     page_icon="✨",
     layout="wide"
 )
+
+init_db()
+from utils.auth import require_auth
+role, cust_id = require_auth()   # both admin and customer
 
 GOLD = "#c9a96e"
 st.markdown("""

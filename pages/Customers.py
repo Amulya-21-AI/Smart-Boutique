@@ -12,6 +12,9 @@ from database.db import (init_db, insert_customer, get_all_customers,
 st.set_page_config(page_title="Customers · Smart Boutique", page_icon="👥", layout="wide")
 init_db()
 
+from utils.auth import require_auth
+role, cust_id = require_auth(['admin'])
+
 GOLD = "#c9a96e"
 st.markdown("""
 <style>

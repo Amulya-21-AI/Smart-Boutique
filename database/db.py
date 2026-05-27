@@ -5,6 +5,8 @@ Smart-Boutique/database/db.py
 import sqlite3
 import pandas as pd
 import os
+import hashlib
+import secrets
 
 DATABASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH      = os.path.join(DATABASE_DIR, "boutique.db")
@@ -118,6 +120,74 @@ def get_all_orders() -> pd.DataFrame:
         LEFT JOIN tailors   t ON o.tailor_id = t.tailor_id
         ORDER BY o.order_date DESC
     """)
+
+
+# ── Auth helpers ─────────────────────────────────────────────────────────────
+def _hash_password(password: str):
+    salt    = secrets.token_hex(16)
+    pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100_000).hex()
+    return pw_hash, salt
+
+
+def _verify_password(password: str, pw_hash: str, salt: str) -> bool:
+    computed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100_000).hex()
+    return computed == pw_hash
+
+
+def create_user(username: str, email: str, password: str, role: str,
+                cust_id=None) -> int:
+    pw_hash, salt = _hash_password(password)
+    return run_insert(
+        """INSERT INTO users (username, email, password_hash, salt, role, cust_id)
+           VALUES (?,?,?,?,?,?)""",
+        (username.strip(), email.strip() if email else None, pw_hash, salt, role, cust_id)
+    )
+
+
+def authenticate_user(username: str, password: str):
+    df = run_query("SELECT * FROM users WHERE username=? AND is_active=1",
+                   (username.strip(),))
+    if df.empty:
+        return None
+    row = df.iloc[0].to_dict()
+    if _verify_password(password, row['password_hash'], row['salt']):
+        run_update("UPDATE users SET last_login=CURRENT_TIMESTAMP WHERE user_id=?",
+                   (row['user_id'],))
+        return row
+    return None
+
+
+def get_user_by_email(email: str):
+    df = run_query("SELECT * FROM users WHERE email=? AND is_active=1", (email.strip(),))
+    return None if df.empty else df.iloc[0].to_dict()
+
+
+def username_exists(username: str) -> bool:
+    df = run_query("SELECT user_id FROM users WHERE username=?", (username.strip(),))
+    return len(df) > 0
+
+
+def ensure_default_admin():
+    df = run_query("SELECT user_id FROM users WHERE role='admin'")
+    if df.empty:
+        create_user('admin', 'admin@boutique.com', 'admin123', 'admin')
+
+
+def get_orders_for_customer(cust_id: int) -> pd.DataFrame:
+    return run_query("""
+        SELECT o.order_id, o.order_date, o.category, o.size, o.qty,
+               o.amount, o.status, o.return_flag, o.delivery_date,
+               o.delivery_days, o.estimated_days, o.season,
+               o.ship_city, o.ship_state, o.b2b, o.retail_supplier,
+               o.tailor_id,
+               t.name  AS tailor_name,
+               t.phone AS tailor_phone,
+               t.specialty AS tailor_specialty
+        FROM orders o
+        LEFT JOIN tailors t ON o.tailor_id = t.tailor_id
+        WHERE o.cust_id = ?
+        ORDER BY o.order_date DESC
+    """, (cust_id,))
 
 
 # ── CSV Seeder ────────────────────────────────────────────────────────────────

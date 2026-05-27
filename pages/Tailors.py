@@ -12,6 +12,9 @@ from database.db import init_db, insert_tailor, get_all_tailors, run_update, run
 st.set_page_config(page_title="Tailors · Smart Boutique", page_icon="✂️", layout="wide")
 init_db()
 
+from utils.auth import require_auth
+role, cust_id = require_auth(['admin'])
+
 GOLD = "#c9a96e"
 st.markdown("""
 <style>
@@ -31,7 +34,7 @@ section[data-testid="stSidebar"] * { color: #f5e6d3 !important; }
 
 st.markdown(f"<h1 style='color:{GOLD}'>✂️ Tailor Management</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["➕ Add Tailor", "👥 Tailor Directory", "📊 Performance"])
+tab1, tab2, tab3, tab4 = st.tabs(["➕ Add Tailor", "👥 Tailor Directory", "🔨 Assign Work", "📊 Performance"])
 
 # ── TAB 1: Add Tailor ─────────────────────────────────────────────────────────
 with tab1:
@@ -92,8 +95,77 @@ with tab2:
                 st.success(f"Updated **{sel_tailor}** → {new_avail}, Rating: {new_rating}")
                 st.rerun()
 
-# ── TAB 3: Performance ────────────────────────────────────────────────────────
+# ── TAB 3: Assign Work ────────────────────────────────────────────────────────
 with tab3:
+    st.subheader("Assign Orders to Tailors")
+    st.info("Only **Available** tailors are shown. Change availability in the Directory tab.")
+
+    all_tailors = get_all_tailors()
+    avail_tailors = all_tailors[all_tailors['availability'] == 'Available'] if not all_tailors.empty else all_tailors
+
+    if avail_tailors.empty:
+        st.warning("No tailors are currently available. Update availability in the Directory tab.")
+    else:
+        # Pending orders not yet assigned
+        unassigned = run_query("""
+            SELECT o.order_id, o.order_date, o.category, o.size, o.amount,
+                   c.name AS customer_name, o.cust_id
+            FROM orders o
+            LEFT JOIN customers c ON o.cust_id = c.cust_id
+            WHERE o.status = 'Pending' AND (o.tailor_id IS NULL OR o.tailor_id = 0)
+            ORDER BY o.order_date ASC
+            LIMIT 100
+        """)
+
+        col_av, col_un = st.columns(2)
+        col_av.metric("Available Tailors",   len(avail_tailors))
+        col_un.metric("Unassigned Pending Orders", len(unassigned))
+
+        st.markdown("#### Unassigned Pending Orders")
+        if unassigned.empty:
+            st.success("All pending orders have been assigned to a tailor.")
+        else:
+            st.dataframe(unassigned, use_container_width=True, height=250)
+
+        st.markdown("#### Assign a Tailor")
+        tailor_options = {
+            f"{r['name']} — {r['specialty']} (ID {r['tailor_id']})": r['tailor_id']
+            for _, r in avail_tailors.iterrows()
+        }
+        with st.form("assign_work_form"):
+            assign_order_id = st.text_input("Order ID to assign",
+                                             placeholder="e.g. ORD-ABC123")
+            selected_tailor = st.selectbox("Tailor", list(tailor_options.keys()))
+            assign_submit   = st.form_submit_button("✅ Assign Tailor", use_container_width=True)
+
+        if assign_submit and assign_order_id.strip():
+            tid = tailor_options[selected_tailor]
+            rows = run_update(
+                "UPDATE orders SET tailor_id=? WHERE order_id=?",
+                (tid, assign_order_id.strip())
+            )
+            if rows:
+                st.success(f"✅ Tailor **{selected_tailor.split(' —')[0]}** "
+                           f"assigned to order `{assign_order_id.strip()}`.")
+                st.rerun()
+            else:
+                st.error("Order ID not found.")
+
+        st.markdown("#### Current Tailor Workload")
+        workload = run_query("""
+            SELECT t.name, t.specialty, t.availability,
+                   COUNT(o.order_id) AS active_orders
+            FROM tailors t
+            LEFT JOIN orders o ON t.tailor_id = o.tailor_id
+                               AND o.status IN ('Pending','Shipped')
+            GROUP BY t.tailor_id
+            ORDER BY active_orders DESC
+        """)
+        if not workload.empty:
+            st.dataframe(workload, use_container_width=True)
+
+# ── TAB 4: Performance ────────────────────────────────────────────────────────
+with tab4:
     st.subheader("Tailor Performance Overview")
     df_perf = run_query("""
         SELECT t.name AS tailor, t.specialty, t.rating,

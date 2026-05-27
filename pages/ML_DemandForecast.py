@@ -19,6 +19,11 @@ st.set_page_config(
     layout="wide"
 )
 
+from database.db import init_db
+init_db()
+from utils.auth import require_auth
+role, cust_id = require_auth(['admin'])
+
 GOLD    = "#c9a96e"
 PALETTE = ["#c9a96e","#e8c99a","#e74c3c","#2ecc71",
            "#3498db","#9b59b6","#f39c12","#1abc9c"]

@@ -20,6 +20,11 @@ st.set_page_config(
     layout="wide"
 )
 
+from database.db import init_db
+init_db()
+from utils.auth import require_auth
+role, cust_id = require_auth(['admin'])
+
 GOLD = "#c9a96e"
 st.markdown("""
 <style>
