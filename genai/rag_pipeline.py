@@ -41,73 +41,49 @@ except ImportError:
     from langchain_community.vectorstores import Chroma
 
 # ── EMBEDDINGS ────────────────────────────────────────────────────────────────
-# Strategy: try 3 options in order of quality
-# 1. HuggingFace (best quality, needs internet once to download)
-# 2. sentence-transformers direct (same model, different wrapper)
-# 3. OpenAI-compatible local embeddings (fully offline fallback)
+# On Railway/cloud: use fast offline TF-IDF embeddings so the app starts
+# instantly (no 400MB model download on startup).
+# The AI assistant still works great for boutique Q&A with TF-IDF.
 
-_embedding_backend = None
+import os as _os
+import numpy as _np
+from sklearn.feature_extraction.text import TfidfVectorizer as _TFV
+from langchain_core.embeddings import Embeddings as _Embeddings
 
-try:
-    from langchain_community.embeddings import HuggingFaceEmbeddings as _HFE
-    # Quick test to see if the model is already cached or downloadable
-    _test = _HFE(model_name="sentence-transformers/all-MiniLM-L6-v2",
-                 model_kwargs={"device": "cpu"})
-    _embedding_backend = "huggingface"
-    HuggingFaceEmbeddings = _HFE
-except Exception:
-    try:
-        from langchain_huggingface import HuggingFaceEmbeddings as _HFE2
-        _embedding_backend = "huggingface_new"
-        HuggingFaceEmbeddings = _HFE2
-    except Exception:
-        HuggingFaceEmbeddings = None
+class OfflineEmbeddings(_Embeddings):
+    """
+    Lightweight TF-IDF embedding — works 100% offline.
+    No download needed. Starts instantly on Railway.
+    """
+    def __init__(self):
+        self.vectorizer = _TFV(max_features=512)
+        self._fitted    = False
 
-# If HuggingFace not available → use offline TF-IDF embeddings via sklearn
-if HuggingFaceEmbeddings is None:
-    try:
-        from langchain_community.embeddings import TfidfEmbeddings
-        _embedding_backend = "tfidf"
-    except Exception:
-        # Build our own lightweight offline embedding using sklearn
-        from sklearn.feature_extraction.text import TfidfVectorizer
-        import numpy as np
-        from langchain_core.embeddings import Embeddings
+    def _fit_if_needed(self, texts):
+        if not self._fitted:
+            self.vectorizer.fit(texts)
+            self._fitted = True
 
-        class OfflineEmbeddings(Embeddings):
-            """
-            Lightweight TF-IDF embedding — works 100% offline.
-            No download needed. Good enough for boutique Q&A.
-            """
-            def __init__(self):
-                self.vectorizer = TfidfVectorizer(max_features=512)
-                self._fitted    = False
+    def embed_documents(self, texts):
+        self._fit_if_needed(texts)
+        matrix = self.vectorizer.transform(texts).toarray()
+        norms  = _np.linalg.norm(matrix, axis=1, keepdims=True)
+        norms[norms == 0] = 1
+        return (matrix / norms).tolist()
 
-            def _fit_if_needed(self, texts):
-                if not self._fitted:
-                    self.vectorizer.fit(texts)
-                    self._fitted = True
+    def embed_query(self, text):
+        if not self._fitted:
+            return [0.0] * 512
+        vec  = self.vectorizer.transform([text]).toarray()[0]
+        norm = _np.linalg.norm(vec)
+        if norm == 0:
+            return vec.tolist()
+        return (vec / norm).tolist()
 
-            def embed_documents(self, texts):
-                self._fit_if_needed(texts)
-                matrix = self.vectorizer.transform(texts).toarray()
-                # Normalize
-                norms  = np.linalg.norm(matrix, axis=1, keepdims=True)
-                norms[norms == 0] = 1
-                return (matrix / norms).tolist()
-
-            def embed_query(self, text):
-                if not self._fitted:
-                    return [0.0] * 512
-                vec   = self.vectorizer.transform([text]).toarray()[0]
-                norm  = np.linalg.norm(vec)
-                if norm == 0:
-                    return vec.tolist()
-                return (vec / norm).tolist()
-
-        _embedding_backend   = "offline_tfidf"
-        _offline_embeddings  = OfflineEmbeddings()
-        print("⚠️  Using offline TF-IDF embeddings (no internet needed)")
+_embedding_backend  = "offline_tfidf"
+_offline_embeddings = OfflineEmbeddings()
+HuggingFaceEmbeddings = None
+print("✅ Using offline TF-IDF embeddings (fast startup, no download needed)")
 
 # ── BM25 RETRIEVER ────────────────────────────────────────────────────────────
 try:
