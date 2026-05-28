@@ -4,7 +4,10 @@ Run: streamlit run Main.py
 """
 import os, sys
 ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ROOT)
+# Ensure project root is always on the Python path (local + Railway)
+for _p in [ROOT, "/app"]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import streamlit as st
 from PIL import Image
