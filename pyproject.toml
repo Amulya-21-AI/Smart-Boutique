@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "smart-boutique"
+version = "1.0.0"
+requires-python = ">=3.9"
+
+[tool.setuptools]
+packages = ["database", "utils", "genai", "ML"]
