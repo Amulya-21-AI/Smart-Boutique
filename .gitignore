@@ -8,3 +8,5 @@ genai/chroma_db/
 .DS_Store
 database/.seeded
 .streamlit/secrets.toml
+build/
+smart_boutique.egg-info/

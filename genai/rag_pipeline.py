@@ -83,7 +83,10 @@ class OfflineEmbeddings(_Embeddings):
 _embedding_backend  = "offline_tfidf"
 _offline_embeddings = OfflineEmbeddings()
 HuggingFaceEmbeddings = None
-print("✅ Using offline TF-IDF embeddings (fast startup, no download needed)")
+try:
+    print("✅ Using offline TF-IDF embeddings (fast startup, no download needed)")
+except UnicodeEncodeError:
+    print("Using offline TF-IDF embeddings (fast startup, no download needed)")
 
 # ── BM25 RETRIEVER ────────────────────────────────────────────────────────────
 try:
