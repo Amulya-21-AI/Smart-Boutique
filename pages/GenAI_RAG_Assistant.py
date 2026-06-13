@@ -10,9 +10,6 @@ import shutil
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from utils.secrets import load_api_keys
-load_api_keys()
-
 import streamlit as st
 from database.db import init_db
 
@@ -21,6 +18,9 @@ st.set_page_config(
     page_icon="✨",
     layout="wide"
 )
+
+from utils.secrets import load_api_keys
+load_api_keys()
 
 init_db()
 from utils.auth import require_auth
